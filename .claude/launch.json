@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "Claira Dev",
+      "runtimeExecutable": "/opt/homebrew/bin/node",
+      "runtimeArgs": ["/Users/keatonhacking/Developer/Claira/node_modules/.bin/vite"],
+      "port": 5173
+    }
+  ]
+}
