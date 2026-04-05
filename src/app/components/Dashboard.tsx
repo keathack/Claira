@@ -270,11 +270,9 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                       <Check className="w-3.5 h-3.5 text-[#f5f7fa]" strokeWidth={2.5} />
                     )}
                   </div>
-                  {!allDone && remainingAfter > 0 && (
-                    <p className="text-[#1e2533]" style={{ fontSize: 12 }}>
-                      {remainingAfter} left
-                    </p>
-                  )}
+                  <p className="text-[#1e2533]" style={{ fontSize: 12 }}>
+                    {stepState.completedIndices.length + 1}/{nextSteps.length}
+                  </p>
                 </div>
                 <p className="flex-1 text-[#1e2533]" style={{ fontSize: 16, lineHeight: "1.35" }}>
                   {currentStep}
