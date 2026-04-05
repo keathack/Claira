@@ -10,7 +10,7 @@ import { SymptomLog } from "./components/SymptomLog";
 import { VisitPrep } from "./components/VisitPrep";
 import { VisitHistory } from "./components/VisitHistory";
 
-const FULL_SCREEN_ROUTES = ["/summary", "/symptoms", "/visit-prep", "/history", "/checkin"];
+const FULL_SCREEN_ROUTES = ["/summary", "/symptoms", "/visit-prep", "/history"];
 
 export default function App() {
   const [onboarded, setOnboarded] = useState(false);
