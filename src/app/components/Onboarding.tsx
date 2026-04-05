@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Sparkles, Shield, Heart, ArrowRight, Mic } from "lucide-react";
+import { BookOpen, Shield, Heart, ArrowRight, Mic } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { ImageWithFallback } from "./figma/ImageWithFallback";
 
@@ -7,7 +7,7 @@ const HERO_IMG = "https://images.unsplash.com/photo-1758654859923-339c0f2f925e?c
 
 const slides = [
   {
-    icon: Sparkles,
+    icon: BookOpen,
     title: "Understand your visits",
     desc: "Claira translates what your doctor said into clear, plain language you can reference anytime.",
     color: "#577399",

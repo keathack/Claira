@@ -9,8 +9,9 @@ import { VisitSummary } from "./components/VisitSummary";
 import { SymptomLog } from "./components/SymptomLog";
 import { VisitPrep } from "./components/VisitPrep";
 import { VisitHistory } from "./components/VisitHistory";
+import { loadVisits } from "./components/Visits";
 
-const FULL_SCREEN_ROUTES = ["/summary", "/symptoms", "/visit-prep", "/history"];
+const FULL_SCREEN_ROUTES = ["/summary", "/symptoms", "/visit-prep", "/history", "/nextsteps", "/medications"];
 
 export default function App() {
   const [onboarded, setOnboarded] = useState(false);
@@ -37,6 +38,14 @@ export default function App() {
       case "/symptoms": return <SymptomLog onBack={() => setCurrentPath("/")} />;
       case "/visit-prep": return <VisitPrep onBack={() => setCurrentPath("/")} onNavigate={setCurrentPath} />;
       case "/history": return <VisitHistory onBack={() => setCurrentPath("/")} onViewSummary={() => setCurrentPath("/summary")} />;
+      case "/nextsteps": {
+        const lastVisit = loadVisits()[0] ?? undefined;
+        return <VisitSummary onBack={() => setCurrentPath("/")} savedVisit={lastVisit} initialTab="Next Steps" />;
+      }
+      case "/medications": {
+        const lastVisit = loadVisits()[0] ?? undefined;
+        return <VisitSummary onBack={() => setCurrentPath("/")} savedVisit={lastVisit} initialTab="Medications" />;
+      }
       default: return <Dashboard onNavigate={setCurrentPath} />;
     }
   };

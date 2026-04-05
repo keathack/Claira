@@ -1,11 +1,11 @@
 import { useState, useEffect } from "react";
-import { ArrowLeft, FileText, Sparkles, AlertCircle, ChevronRight, ClipboardList, ChevronDown, ChevronUp, Copy, Check } from "lucide-react";
+import { ArrowLeft, FileText, AlertCircle, ChevronRight, ClipboardList, ChevronDown, ChevronUp, Copy, Check, Pill, Mic } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
 interface SummaryData {
   diagnosis: string;
   medications: { name: string; whatItDoes: string; howToTake: string; sideEffects: string }[];
-  nextSteps: string[];
+  nextSteps: { title: string; description: string }[];
 }
 
 export interface VisitLog {
@@ -95,7 +95,7 @@ function VisitDetail({ visit, onBack }: { visit: VisitLog; onBack: () => void })
   };
 
   const handleCopy = () => {
-    const text = `YOUR DIAGNOSIS\n${summary.diagnosis}\n\nYOUR MEDICATIONS\n${summary.medications.map((m) => `${m.name}\n- What it does: ${m.whatItDoes}\n- How to take it: ${m.howToTake}\n- Side effects: ${m.sideEffects}`).join("\n\n")}\n\nYOUR NEXT STEPS\n${summary.nextSteps.map((s) => `- ${s}`).join("\n")}\n\nThis summary reflects what your doctor shared during your visit. It is not medical advice.`;
+    const text = `YOUR DIAGNOSIS\n${summary.diagnosis}\n\nYOUR MEDICATIONS\n${summary.medications.map((m) => `${m.name}\n- What it does: ${m.whatItDoes}\n- How to take it: ${m.howToTake}\n- Side effects: ${m.sideEffects}`).join("\n\n")}\n\nYOUR NEXT STEPS\n${summary.nextSteps.map((s, i) => `${i + 1}. ${s.title}: ${s.description}`).join("\n")}\n\nThis summary reflects what your doctor shared during your visit. It is not medical advice.`;
     navigator.clipboard.writeText(text);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
@@ -120,7 +120,7 @@ function VisitDetail({ visit, onBack }: { visit: VisitLog; onBack: () => void })
           <p className="text-[#a9b9d0]" style={{ fontSize: 12 }}>{formattedDate}</p>
         </div>
         <div className="w-9 h-9 rounded-xl bg-[#577399]/10 flex items-center justify-center">
-          <Sparkles className="w-4 h-4 text-[#577399]" />
+          <ClipboardList className="w-4 h-4 text-[#577399]" />
         </div>
       </div>
 
@@ -148,7 +148,7 @@ function VisitDetail({ visit, onBack }: { visit: VisitLog; onBack: () => void })
         {/* MEDICATIONS */}
         <SummarySection
           title="Your Medications"
-          icon={<Sparkles className="w-4 h-4 text-[#465e83]" />}
+          icon={<Pill className="w-4 h-4 text-[#465e83]" />}
           iconBg="bg-[#465e83]/10"
           badge={summary.medications.length.toString()}
           expanded={expandedSection === "medications"}
@@ -189,7 +189,10 @@ function VisitDetail({ visit, onBack }: { visit: VisitLog; onBack: () => void })
                     <div className="w-6 h-6 rounded-lg bg-[#577399]/12 flex items-center justify-center shrink-0 mt-0.5">
                       <span className="text-[#577399]" style={{ fontSize: 12, fontWeight: 600 }}>{i + 1}</span>
                     </div>
-                    <p className="text-[#32415a]" style={{ fontSize: 14, lineHeight: 1.6 }}>{s}</p>
+                    <div className="flex flex-col gap-0.5">
+                      <p className="text-[#1e2533]" style={{ fontSize: 14, fontWeight: 600, lineHeight: 1.4 }}>{s.title}</p>
+                      <p className="text-[#7a94b6]" style={{ fontSize: 13, lineHeight: 1.6 }}>{s.description}</p>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -267,30 +270,29 @@ export function Visits({ onNewVisit }: VisitsProps) {
           className="px-4 py-2 rounded-xl bg-[#577399] text-white flex items-center gap-1.5"
           style={{ fontSize: 13, fontWeight: 500 }}
         >
-          <Sparkles className="w-3.5 h-3.5" />
+          <Mic className="w-3.5 h-3.5" />
           New Visit
         </button>
       </div>
 
       {/* Empty State */}
       {visits.length === 0 && (
-        <div className="flex flex-col items-center justify-center py-16 gap-4">
-          <div className="w-16 h-16 rounded-2xl bg-[#577399]/10 flex items-center justify-center">
-            <ClipboardList className="w-8 h-8 text-[#577399]" />
+        <div className="flex flex-col items-center justify-center gap-6 text-center" style={{ minHeight: "calc(100vh - 220px)" }}>
+          <div className="w-16 h-16 rounded-full border border-[#d1d9e6] flex items-center justify-center">
+            <ClipboardList className="w-6 h-6 text-[#1e2533]" strokeWidth={1.5} />
           </div>
-          <div className="text-center">
-            <p className="text-[#1e2533]" style={{ fontSize: 16, fontWeight: 600 }}>No visits yet</p>
-            <p className="text-[#a9b9d0] mt-1 max-w-[260px]" style={{ fontSize: 14, lineHeight: 1.6 }}>
+          <div className="flex flex-col gap-1">
+            <p className="text-[#1e2533]" style={{ fontSize: 15, fontWeight: 600 }}>No visits yet</p>
+            <p className="text-[#a9b9d0]" style={{ fontSize: 13, lineHeight: 1.6 }}>
               After you record a visit summary, save it here to review anytime.
             </p>
           </div>
           <button
             onClick={onNewVisit}
-            className="px-6 py-3 rounded-2xl bg-[#577399] text-white flex items-center gap-2"
-            style={{ fontSize: 14, fontWeight: 600 }}
+            className="w-full bg-[#577399] text-white rounded-2xl py-4"
+            style={{ fontSize: 16, fontWeight: 600 }}
           >
-            <Sparkles className="w-4 h-4" />
-            Record Your First Visit
+            Record a visit
           </button>
         </div>
       )}
@@ -322,7 +324,7 @@ export function Visits({ onNewVisit }: VisitsProps) {
                     <div className="flex gap-2 mt-3">
                       {visit.summary.medications.length > 0 && (
                         <span className="inline-flex items-center gap-1 bg-[#465e83]/8 text-[#465e83] rounded-lg px-2.5 py-1" style={{ fontSize: 11, fontWeight: 500 }}>
-                          <Sparkles className="w-3 h-3" />
+                          <Pill className="w-3 h-3" />
                           {visit.summary.medications.length} med{visit.summary.medications.length !== 1 ? "s" : ""}
                         </span>
                       )}

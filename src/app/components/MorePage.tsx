@@ -1,7 +1,16 @@
-import { FileText, Bell, Shield, User, ChevronRight, Settings, HelpCircle, LogOut, ClipboardList, Stethoscope, History } from "lucide-react";
+import { useState } from "react";
+import { FileText, Bell, Shield, User, ChevronRight, Settings, HelpCircle, LogOut, ClipboardList, Stethoscope, History, RotateCcw, Check } from "lucide-react";
 import { ImageWithFallback } from "./figma/ImageWithFallback";
 
 const PATIENT_IMG = "https://images.unsplash.com/photo-1765896387387-0538bc9f997e?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHx3b21hbiUyMHBhdGllbnQlMjBoZWFsdGhjYXJlJTIwc21pbGluZ3xlbnwxfHx8fDE3NzQ4MDg5Nzl8MA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral";
+
+const CLEARABLE_KEYS = [
+  "claira_visits",
+  "claira_next_steps",
+  "claira_med_timing",
+  "claira_med_taken",
+  "claira_checkins",
+];
 
 interface MorePageProps {
   onNavigate: (path: string) => void;
@@ -23,15 +32,25 @@ const settings = [
 ];
 
 export function MorePage({ onNavigate }: MorePageProps) {
+  const [cleared, setCleared] = useState(false);
+
+  function handleClearData() {
+    CLEARABLE_KEYS.forEach((k) => localStorage.removeItem(k));
+    setCleared(true);
+    setTimeout(() => setCleared(false), 2000);
+  }
+
   return (
     <div className="px-5 pt-14 pb-4 space-y-5" style={{ fontFamily: "'Area Normal', sans-serif" }}>
       <h1 className="text-[#1e2533]" style={{ fontSize: 22, fontWeight: 600 }}>More</h1>
 
       {/* Profile Card */}
       <div className="bg-white rounded-2xl p-4 border border-[#d1d9e6] flex items-center gap-4">
-        <ImageWithFallback src={PATIENT_IMG} alt="Profile" className="w-14 h-14 rounded-2xl object-cover" />
+        <div className="w-14 h-14 rounded-2xl bg-[#577399] flex items-center justify-center shrink-0">
+          <span className="text-white" style={{ fontSize: 22, fontWeight: 700 }}>K</span>
+        </div>
         <div className="flex-1">
-          <p className="text-[#1e2533]" style={{ fontSize: 16, fontWeight: 600 }}>Alex Johnson</p>
+          <p className="text-[#1e2533]" style={{ fontSize: 16, fontWeight: 600 }}>Keaton Hacking</p>
           <p className="text-[#a9b9d0]" style={{ fontSize: 13 }}>ID: CL-29384</p>
         </div>
         <ChevronRight className="w-4 h-4 text-[#a9b9d0]" />
@@ -72,6 +91,30 @@ export function MorePage({ onNavigate }: MorePageProps) {
             <ChevronRight className="w-4 h-4 text-[#a9b9d0] shrink-0" />
           </button>
         ))}
+      </div>
+
+      {/* Developer */}
+      <p className="text-[#a9b9d0] px-1" style={{ fontSize: 12, fontWeight: 600, letterSpacing: 0.5, textTransform: "uppercase" }}>Developer</p>
+      <div className="bg-white rounded-2xl border border-[#d1d9e6] overflow-hidden">
+        <button
+          onClick={handleClearData}
+          className="w-full flex items-center gap-4 px-4 py-4 text-left active:bg-[#f5f7fa]"
+        >
+          <div className="w-9 h-9 rounded-xl bg-[#eaedf4] flex items-center justify-center shrink-0">
+            {cleared
+              ? <Check className="w-4 h-4 text-[#577399]" />
+              : <RotateCcw className="w-4 h-4 text-[#7a94b6]" />
+            }
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-[#1e2533]" style={{ fontSize: 14, fontWeight: 500 }}>
+              {cleared ? "Data cleared" : "Clear app data"}
+            </p>
+            <p className="text-[#a9b9d0]" style={{ fontSize: 12 }}>
+              Resets visits, steps, medications & check-ins
+            </p>
+          </div>
+        </button>
       </div>
 
       <button className="w-full py-3 rounded-2xl border border-[#d4183d]/20 text-[#d4183d] flex items-center justify-center gap-2" style={{ fontSize: 14, fontWeight: 500 }}>

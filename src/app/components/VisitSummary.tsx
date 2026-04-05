@@ -1,12 +1,12 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
-import { ArrowLeft, Mic, MicOff, FileText, Sparkles, Check, ChevronDown, ChevronUp, AlertCircle, Clipboard, Share2, Play, Pause, Square, WifiOff, RotateCcw, Trash2, BookmarkCheck, Bookmark, FileAudio, ChevronRight } from "lucide-react";
+import { ArrowLeft, Mic, MicOff, FileText, Check, ChevronDown, ChevronUp, AlertCircle, Clipboard, Share2, Play, Pause, Square, WifiOff, RotateCcw, Trash2, BookmarkCheck, Bookmark, FileAudio, ChevronRight, ClipboardList, ScanText } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { saveVisit } from "./Visits";
 
 interface SummaryData {
   diagnosis: string;
   medications: { name: string; whatItDoes: string; howToTake: string; sideEffects: string }[];
-  nextSteps: string[];
+  nextSteps: { title: string; description: string }[];
 }
 
 const MOCK_TRANSCRIPT = `So your blood work came back and your hemoglobin A1C is at 7.2 percent, which tells us your blood sugar has been running a bit high over the last few months. That means your type 2 diabetes isn't quite as controlled as we'd like it to be. I'm going to increase your Metformin from 500 milligrams to 1000 milligrams, and you'll take that twice a day with meals — once in the morning, once in the evening. Some people get a little stomach upset when we increase the dose, so take it with food and let me know if you have any nausea or diarrhea that doesn't go away after a week or two. We're also going to keep you on Lisinopril 10 milligrams once daily for your blood pressure, which looked good today at 128 over 82. I want you to come back in three months so we can recheck your A1C and see how the new dose is working. In the meantime, try to check your blood sugar at home at least twice a week, fasting in the morning, and keep a log of those numbers to bring to your next visit. If your blood sugar readings go above 250 or you feel dizzy, very thirsty, or unusually tired, call the office right away.`;
@@ -28,10 +28,10 @@ const MOCK_SUMMARY: SummaryData = {
     },
   ],
   nextSteps: [
-    "Schedule a follow-up appointment in three months to recheck your A1C blood test.",
-    "Check your blood sugar at home at least twice a week, first thing in the morning before eating.",
-    "Keep a written log of your blood sugar numbers and bring it to your next visit.",
-    "Call your doctor's office right away if your blood sugar goes above 250, or if you feel dizzy, very thirsty, or unusually tired.",
+    { title: "Schedule follow-up", description: "Book an appointment in three months to recheck your A1C blood test." },
+    { title: "Monitor blood sugar", description: "Check at home at least twice a week, first thing in the morning before eating." },
+    { title: "Log your readings", description: "Keep a written record of your blood sugar numbers to bring to your next visit." },
+    { title: "Know when to call", description: "Contact your doctor right away if blood sugar exceeds 250, or if you feel dizzy, very thirsty, or unusually tired." },
   ],
 };
 
@@ -41,6 +41,8 @@ type ProcessingState = "idle" | "processing" | "slow" | "success" | "error-netwo
 
 interface VisitSummaryProps {
   onBack: () => void;
+  savedVisit?: { date: string; summary: SummaryData };
+  initialTab?: "Diagnosis" | "Medications" | "Next Steps";
 }
 
 function formatTime(seconds: number) {
@@ -51,16 +53,16 @@ function formatTime(seconds: number) {
 
 const MAX_RECORDING_SECONDS = 1800; // 30 min
 
-export function VisitSummary({ onBack }: VisitSummaryProps) {
-  const [step, setStep] = useState<"input" | "loading" | "result">("input");
+export function VisitSummary({ onBack, savedVisit, initialTab }: VisitSummaryProps) {
+  const [step, setStep] = useState<"input" | "loading" | "result">(savedVisit ? "result" : "input");
   const [transcript, setTranscript] = useState("");
   const [micPermission, setMicPermission] = useState<MicPermission>("prompt");
   const [recordingState, setRecordingState] = useState<RecordingState>("idle");
   const [recordingSeconds, setRecordingSeconds] = useState(0);
   const [processingState, setProcessingState] = useState<ProcessingState>("idle");
-  const [summary, setSummary] = useState<SummaryData | null>(null);
+  const [summary, setSummary] = useState<SummaryData | null>(savedVisit?.summary ?? null);
   const [expandedSection, setExpandedSection] = useState<string | null>("diagnosis");
-  const [activeTab, setActiveTab] = useState<"Diagnosis" | "Medications" | "Next Steps">("Diagnosis");
+  const [activeTab, setActiveTab] = useState<"Diagnosis" | "Medications" | "Next Steps">(initialTab ?? "Diagnosis");
   const [copied, setCopied] = useState(false);
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -304,7 +306,7 @@ export function VisitSummary({ onBack }: VisitSummaryProps) {
             <p className="text-[#a9b9d0]" style={{ fontSize: 12 }}>AI-powered plain language breakdown</p>
           </div>
           <div className="w-9 h-9 rounded-xl bg-[#577399]/10 flex items-center justify-center">
-            <Sparkles className="w-4 h-4 text-[#577399]" />
+            <ClipboardList className="w-4 h-4 text-[#577399]" />
           </div>
         </div>
       )}
@@ -490,7 +492,7 @@ export function VisitSummary({ onBack }: VisitSummaryProps) {
                           }`}
                           style={{ fontSize: 15, fontWeight: 600 }}
                         >
-                          <Sparkles className="w-5 h-5" />
+                          <ScanText className="w-5 h-5" />
                           Summarize Visit
                         </button>
                         {transcript.trim() && transcript.trim().split(/\s+/).length < 10 && (
@@ -536,7 +538,7 @@ export function VisitSummary({ onBack }: VisitSummaryProps) {
                     animate={{ rotate: [0, 5, -5, 0] }}
                     transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}
                   >
-                    <Sparkles className="w-8 h-8 text-[#577399]" />
+                    <ScanText className="w-8 h-8 text-[#577399]" />
                   </motion.div>
                   <motion.div
                     className="absolute -inset-3 rounded-3xl border-2 border-[#577399]/20"
@@ -645,14 +647,14 @@ export function VisitSummary({ onBack }: VisitSummaryProps) {
               </div>
               <div className="flex flex-col items-center text-center">
                 <div className="w-16 h-16 rounded-full bg-[#577399]/15 flex items-center justify-center mb-4">
-                  <Sparkles className="w-8 h-8 text-[#577399]" />
+                  <ClipboardList className="w-8 h-8 text-[#577399]" />
                 </div>
                 <p className="text-[#7a94b6]" style={{ fontSize: 13 }}>Visit Summary</p>
                 <p className="text-[#1e2533] mt-1" style={{ fontSize: 32, fontWeight: 700, letterSpacing: -0.5 }}>
-                  {new Date().toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                  {new Date(savedVisit?.date ?? Date.now()).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
                 </p>
                 <p className="text-[#a9b9d0]" style={{ fontSize: 13 }}>
-                  {new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric" })}
+                  {new Date(savedVisit?.date ?? Date.now()).toLocaleDateString("en-US", { weekday: "long", year: "numeric" })}
                 </p>
               </div>
             </div>
@@ -724,16 +726,16 @@ export function VisitSummary({ onBack }: VisitSummaryProps) {
                         <p className="text-[#a9b9d0]" style={{ fontSize: 14 }}>No next steps recorded.</p>
                       ) : (
                         <div className="relative">
-                          {/* vertical line */}
                           <div className="absolute left-[15px] top-6 bottom-6 w-px bg-[#d1d9e6]" />
                           <div className="space-y-5">
                             {summary.nextSteps.map((s, i) => (
                               <div key={i} className="flex gap-4 items-start">
-                                <div className="w-8 h-8 rounded-full bg-[#577399]/10 border-2 border-[#577399]/20 flex items-center justify-center shrink-0 relative z-10 bg-white" style={{ background: "white" }}>
+                                <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 relative z-10" style={{ background: "white", border: "2px solid #d1d9e6" }}>
                                   <span className="text-[#577399]" style={{ fontSize: 12, fontWeight: 700 }}>{i + 1}</span>
                                 </div>
-                                <div className="flex-1 pt-1">
-                                  <p className="text-[#32415a]" style={{ fontSize: 14, lineHeight: 1.7 }}>{s}</p>
+                                <div className="flex-1 pt-1 flex flex-col gap-0.5">
+                                  <p className="text-[#1e2533]" style={{ fontSize: 14, fontWeight: 600, lineHeight: 1.4 }}>{s.title}</p>
+                                  <p className="text-[#7a94b6]" style={{ fontSize: 13, lineHeight: 1.6 }}>{s.description}</p>
                                 </div>
                               </div>
                             ))}
