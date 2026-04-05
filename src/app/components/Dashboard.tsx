@@ -257,28 +257,29 @@ export function Dashboard({ onNavigate }: DashboardProps) {
             ) : (
               <button
                 onClick={handleCheckStep}
-                className="flex items-center gap-[10px] w-full text-left"
+                className="flex items-start gap-[10px] w-full text-left"
                 disabled={justChecked}
               >
-                <div
-                  className={`w-[26px] h-[26px] rounded-[6px] flex items-center justify-center shrink-0 transition-colors ${
-                    justChecked ? "bg-[#465e83]" : "border border-[#1e2533]"
-                  }`}
-                >
-                  {justChecked && (
-                    <Check className="w-3.5 h-3.5 text-[#f5f7fa]" strokeWidth={2.5} />
+                <div className="flex flex-col items-center gap-1.5 shrink-0">
+                  <div
+                    className={`w-[26px] h-[26px] rounded-[6px] flex items-center justify-center transition-colors ${
+                      justChecked ? "bg-[#465e83]" : "border border-[#1e2533]"
+                    }`}
+                  >
+                    {justChecked && (
+                      <Check className="w-3.5 h-3.5 text-[#f5f7fa]" strokeWidth={2.5} />
+                    )}
+                  </div>
+                  {!allDone && remainingAfter > 0 && (
+                    <p className="text-[#1e2533]" style={{ fontSize: 12 }}>
+                      {remainingAfter} left
+                    </p>
                   )}
                 </div>
                 <p className="flex-1 text-[#1e2533]" style={{ fontSize: 16, lineHeight: "1.35" }}>
                   {currentStep}
                 </p>
               </button>
-            )}
-
-            {!allDone && remainingAfter > 0 && (
-              <p className="text-[#a9b9d0]" style={{ fontSize: 12 }}>
-                {remainingAfter} more step{remainingAfter > 1 ? "s" : ""}
-              </p>
             )}
           </div>
         )}
