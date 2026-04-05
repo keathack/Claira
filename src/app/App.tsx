@@ -3,14 +3,14 @@ import { BottomNav } from "./components/BottomNav";
 import { Onboarding } from "./components/Onboarding";
 import { Dashboard } from "./components/Dashboard";
 import { Visits } from "./components/Visits";
-import { Vitals } from "./components/Vitals";
+import { CheckIn } from "./components/CheckIn";
 import { MorePage } from "./components/MorePage";
 import { VisitSummary } from "./components/VisitSummary";
 import { SymptomLog } from "./components/SymptomLog";
 import { VisitPrep } from "./components/VisitPrep";
 import { VisitHistory } from "./components/VisitHistory";
 
-const FULL_SCREEN_ROUTES = ["/summary", "/symptoms", "/visit-prep", "/history"];
+const FULL_SCREEN_ROUTES = ["/summary", "/symptoms", "/visit-prep", "/history", "/checkin"];
 
 export default function App() {
   const [onboarded, setOnboarded] = useState(false);
@@ -31,7 +31,7 @@ export default function App() {
   const renderPage = () => {
     switch (currentPath) {
       case "/visits": return <Visits onNewVisit={() => setCurrentPath("/summary")} />;
-      case "/vitals": return <Vitals />;
+      case "/checkin": return <CheckIn onBack={() => setCurrentPath("/")} />;
       case "/more": return <MorePage onNavigate={setCurrentPath} />;
       case "/summary": return <VisitSummary onBack={() => setCurrentPath("/")} />;
       case "/symptoms": return <SymptomLog onBack={() => setCurrentPath("/")} />;

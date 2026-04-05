@@ -1,299 +1,500 @@
-import { useEffect, useState } from "react";
-import { ChevronRight, Heart, Activity, AlertCircle, Clock, Sparkles } from "lucide-react";
-import { motion, AnimatePresence } from "motion/react";
-import { loadVisits, VisitLog } from "./Visits";
+import { useState } from "react";
+import { MoreHorizontal, Check } from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
+import { loadVisits } from "./Visits";
 
-const today = new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
+// ── Storage keys ──────────────────────────────────────────
+const MED_TIMING_KEY = "claira_med_timing";
+const MED_TAKEN_KEY = "claira_med_taken";
+const NEXT_STEPS_KEY = "claira_next_steps";
 
-interface SymptomEntry {
-  id: string;
-  date: string;
-  time: string;
-  symptom: string;
-  severity: 1 | 2 | 3 | 4 | 5;
-  notes: string;
+// ── Types ─────────────────────────────────────────────────
+interface MedTiming {
+  [key: string]: string; // "MedName_Period" → "8:00 AM"
 }
 
-const SEVERITY_COLORS: Record<number, string> = {
-  1: "#577399", 2: "#7a94b6", 3: "#e6a817", 4: "#d4813d", 5: "#d4183d",
-};
-const SEVERITY_LABELS: Record<number, string> = {
-  1: "Mild", 2: "Slight", 3: "Moderate", 4: "Strong", 5: "Severe",
-};
+interface MedTaken {
+  [dateStr: string]: string[]; // date → ["MedName_Period", ...]
+}
 
-const DEMO_SYMPTOMS: SymptomEntry[] = [
-  { id: "1", date: "Mar 29, 2026", time: "8:30 AM", symptom: "Nausea", severity: 2, notes: "Mild nausea after taking Metformin." },
-  { id: "2", date: "Mar 28, 2026", time: "3:00 PM", symptom: "Dizziness", severity: 3, notes: "Felt lightheaded when standing up quickly." },
-  { id: "3", date: "Mar 27, 2026", time: "9:00 PM", symptom: "Fatigue", severity: 2, notes: "Unusually tired in the evening." },
-];
+interface NextStepsProgress {
+  [visitId: string]: {
+    currentIndex: number;
+    completedIndices: number[];
+  };
+}
 
-const DEMO_VITALS = [
-  { id: "1", date: "Mar 29, 2026", label: "Heart Rate", value: "72", unit: "bpm", status: "Normal" },
-  { id: "2", date: "Mar 27, 2026", label: "Blood Pressure", value: "120/80", unit: "mmHg", status: "Normal" },
-  { id: "3", date: "Mar 25, 2026", label: "SpO2", value: "98", unit: "%", status: "Normal" },
-];
+interface MedRowData {
+  name: string;
+  period: string;
+  time: string;
+  overdue: boolean;
+  taken: boolean;
+}
 
-type FolderKey = "visits" | "symptoms" | "vitals" | null;
+// ── Helpers ───────────────────────────────────────────────
+function todayStr() {
+  return new Date().toDateString();
+}
 
+function parseDoses(howToTake: string): { period: string; defaultTime: string }[] {
+  const lower = howToTake.toLowerCase();
+  if (lower.includes("twice a day") || lower.includes("twice daily")) {
+    return [
+      { period: "Morning", defaultTime: "8:00 AM" },
+      { period: "Evening", defaultTime: "5:00 PM" },
+    ];
+  }
+  return [{ period: "Morning", defaultTime: "8:00 AM" }];
+}
+
+function isOverdue(timeStr: string): boolean {
+  if (!timeStr) return false;
+  const parts = timeStr.split(" ");
+  if (parts.length < 2) return false;
+  const [hm, meridiem] = parts;
+  const [hh, mm] = hm.split(":").map(Number);
+  let h = hh;
+  if (meridiem === "PM" && h !== 12) h += 12;
+  if (meridiem === "AM" && h === 12) h = 0;
+  const scheduled = new Date();
+  scheduled.setHours(h, mm, 0, 0);
+  return new Date() > scheduled;
+}
+
+function to24h(display: string): string {
+  const parts = display.split(" ");
+  if (parts.length < 2) return "08:00";
+  const [time, mer] = parts;
+  let [h, m] = time.split(":").map(Number);
+  if (mer === "PM" && h !== 12) h += 12;
+  if (mer === "AM" && h === 12) h = 0;
+  return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`;
+}
+
+function to12h(val: string): string {
+  const [h, m] = val.split(":").map(Number);
+  const mer = h >= 12 ? "PM" : "AM";
+  const h12 = h % 12 || 12;
+  return `${h12}:${m.toString().padStart(2, "0")} ${mer}`;
+}
+
+function loadJSON<T>(key: string, fallback: T): T {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+// ── Component ─────────────────────────────────────────────
 interface DashboardProps {
   onNavigate: (path: string) => void;
 }
 
 export function Dashboard({ onNavigate }: DashboardProps) {
-  const [openFolder, setOpenFolder] = useState<FolderKey>(null);
-  const [visits, setVisits] = useState<VisitLog[]>([]);
+  const visits = loadVisits();
+  const lastVisit = visits[0] ?? null;
 
-  useEffect(() => {
-    setVisits(loadVisits());
-  }, []);
+  const [medTiming, setMedTiming] = useState<MedTiming>(() =>
+    loadJSON(MED_TIMING_KEY, {})
+  );
+  const [medTaken, setMedTaken] = useState<MedTaken>(() =>
+    loadJSON(MED_TAKEN_KEY, {})
+  );
+  const [stepsProgress, setStepsProgress] = useState<NextStepsProgress>(() =>
+    loadJSON(NEXT_STEPS_KEY, {})
+  );
 
-  const toggle = (key: FolderKey) =>
-    setOpenFolder((prev) => (prev === key ? null : key));
+  const [editingMed, setEditingMed] = useState<{ name: string; period: string } | null>(null);
+  const [editTime, setEditTime] = useState("");
+  const [editAlarm, setEditAlarm] = useState(false);
+  const [justChecked, setJustChecked] = useState(false);
 
-  const lastVisitDate = visits.length > 0
-    ? new Date(visits[0].date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+  const today = todayStr();
+  const takenToday = medTaken[today] ?? [];
+
+  // Build medication schedule from last visit
+  const medSchedule: MedRowData[] = [];
+  if (lastVisit) {
+    for (const med of lastVisit.summary.medications) {
+      for (const dose of parseDoses(med.howToTake)) {
+        const key = `${med.name}_${dose.period}`;
+        const time = medTiming[key] ?? dose.defaultTime;
+        const taken = takenToday.includes(key);
+        medSchedule.push({
+          name: med.name,
+          period: dose.period,
+          time,
+          overdue: !taken && isOverdue(time),
+          taken,
+        });
+      }
+    }
+  }
+
+  const morningMeds = medSchedule.filter((m) => m.period === "Morning");
+  const eveningMeds = medSchedule.filter((m) => m.period === "Evening");
+
+  // Next steps state
+  const nextSteps = lastVisit?.summary.nextSteps ?? [];
+  const visitId = lastVisit?.id ?? "";
+  const stepState = stepsProgress[visitId] ?? { currentIndex: 0, completedIndices: [] };
+  const currentIndex = Math.min(stepState.currentIndex, nextSteps.length - 1);
+  const currentStep = nextSteps[currentIndex] ?? null;
+  const allDone = stepState.completedIndices.length >= nextSteps.length;
+  const remainingAfter = nextSteps.length - stepState.completedIndices.length - 1;
+
+  function handleCheckStep() {
+    if (!lastVisit || !currentStep || justChecked || allDone) return;
+    setJustChecked(true);
+    setTimeout(() => {
+      const newCompleted = [...stepState.completedIndices, currentIndex];
+      const nextIdx = currentIndex + 1 < nextSteps.length ? currentIndex + 1 : currentIndex;
+      const updated = {
+        ...stepsProgress,
+        [visitId]: { currentIndex: nextIdx, completedIndices: newCompleted },
+      };
+      setStepsProgress(updated);
+      localStorage.setItem(NEXT_STEPS_KEY, JSON.stringify(updated));
+      setJustChecked(false);
+    }, 550);
+  }
+
+  function handleTakeMed(name: string, period: string) {
+    const key = `${name}_${period}`;
+    const updated = takenToday.includes(key)
+      ? takenToday.filter((k) => k !== key)
+      : [...takenToday, key];
+    const newTaken = { ...medTaken, [today]: updated };
+    setMedTaken(newTaken);
+    localStorage.setItem(MED_TAKEN_KEY, JSON.stringify(newTaken));
+  }
+
+  function handleOpenEdit(name: string, period: string) {
+    const key = `${name}_${period}`;
+    setEditTime(medTiming[key] ?? (period === "Morning" ? "8:00 AM" : "5:00 PM"));
+    setEditAlarm(false);
+    setEditingMed({ name, period });
+  }
+
+  function handleSaveEdit() {
+    if (!editingMed) return;
+    const key = `${editingMed.name}_${editingMed.period}`;
+    const newTiming = { ...medTiming, [key]: editTime };
+    setMedTiming(newTiming);
+    localStorage.setItem(MED_TIMING_KEY, JSON.stringify(newTiming));
+    setEditingMed(null);
+  }
+
+  const dateDisplay = new Date().toLocaleDateString("en-US", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+  });
+
+  const visitDateDisplay = lastVisit
+    ? new Date(lastVisit.date).toLocaleDateString("en-US", { month: "long", day: "numeric" })
     : null;
 
-  const lastSymptom = DEMO_SYMPTOMS[0];
-  const lastVital = DEMO_VITALS[0];
-
   return (
-    <div className="flex flex-col min-h-screen pb-24 px-5 pt-14" style={{ fontFamily: "'Area Normal', sans-serif" }}>
+    <div className="flex flex-col min-h-screen pb-28 px-5 pt-14">
 
       {/* Header */}
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex items-center justify-between mb-6">
         <div>
-          <p className="text-[#a9b9d0]" style={{ fontSize: 13 }}>{today}</p>
-          <h1 className="text-[#1e2533] mt-0.5" style={{ fontSize: 24, fontWeight: 700, lineHeight: 1.2 }}>
-            Welcome to Claira
+          <p className="text-[#a9b9d0]" style={{ fontSize: 13 }}>{dateDisplay}</p>
+          <h1 className="text-[#1e2533] mt-0.5" style={{ fontSize: 22, fontWeight: 700 }}>
+            Welcome back, Keaton
           </h1>
         </div>
         <button
           onClick={() => onNavigate("/more")}
-          className="w-11 h-11 rounded-full bg-[#577399] flex items-center justify-center shadow-sm"
+          className="w-10 h-10 rounded-[20px] bg-[#577399] flex items-center justify-center shrink-0"
         >
-          <span className="text-white" style={{ fontSize: 15, fontWeight: 700 }}>A</span>
+          <span className="text-white" style={{ fontSize: 14, fontWeight: 700 }}>A</span>
         </button>
       </div>
 
-      {/* Folders */}
       <div className="flex flex-col gap-4">
 
-        {/* ── Visits Folder ── */}
-        <Folder
-          label="Visits"
-          isOpen={openFolder === "visits"}
-          onToggle={() => toggle("visits")}
-          summary={
-            lastVisitDate ? (
+        {/* ── Next Steps Card ── */}
+        {lastVisit && nextSteps.length > 0 && (
+          <div
+            className="bg-white rounded-[20px] p-[18px] flex flex-col gap-[10px]"
+            style={{ boxShadow: "0 2px 16px rgba(0,0,0,0.07)" }}
+          >
+            <div className="flex flex-col gap-0.5">
               <div className="flex items-center justify-between">
-                <span className="text-[#1e2533]" style={{ fontSize: 14, fontWeight: 500 }}>Last visit: {lastVisitDate}</span>
-                <span className="text-[#a9b9d0]" style={{ fontSize: 13 }}>{visits.length} total</span>
-              </div>
-            ) : (
-              <span className="text-[#a9b9d0]" style={{ fontSize: 14 }}>No visits recorded yet</span>
-            )
-          }
-        >
-          {visits.length === 0 ? (
-            <EmptyState icon={<Sparkles className="w-5 h-5 text-[#577399]" />} message="No visits yet" />
-          ) : (
-            <>
-              {visits.slice(0, 3).map((v) => {
-                const date = new Date(v.date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-                const preview = v.summary.diagnosis?.slice(0, 50) + (v.summary.diagnosis?.length > 50 ? "…" : "") || "No diagnosis";
-                return (
-                  <ListRow
-                    key={v.id}
-                    left={<Sparkles className="w-4 h-4 text-[#577399]" />}
-                    primary={date}
-                    secondary={preview}
-                  />
-                );
-              })}
-              <ExpandButton onClick={() => onNavigate("/visits")} />
-            </>
-          )}
-        </Folder>
-
-        {/* ── Symptoms Folder ── */}
-        <Folder
-          label="Symptoms"
-          isOpen={openFolder === "symptoms"}
-          onToggle={() => toggle("symptoms")}
-          summary={
-            lastSymptom ? (
-              <div className="flex items-center justify-between">
-                <span className="text-[#1e2533]" style={{ fontSize: 14, fontWeight: 500 }}>Last: {lastSymptom.symptom}</span>
-                <span className="text-[#a9b9d0]" style={{ fontSize: 13 }}>{lastSymptom.date}</span>
-              </div>
-            ) : (
-              <span className="text-[#a9b9d0]" style={{ fontSize: 14 }}>No symptoms logged yet</span>
-            )
-          }
-        >
-          {DEMO_SYMPTOMS.slice(0, 3).map((s) => (
-            <ListRow
-              key={s.id}
-              left={
-                <span
-                  className="w-8 h-8 rounded-xl flex items-center justify-center text-white shrink-0"
-                  style={{ backgroundColor: SEVERITY_COLORS[s.severity], fontSize: 12, fontWeight: 700 }}
+                <p className="text-[#1e2533]" style={{ fontSize: 16, fontWeight: 600 }}>
+                  Next Steps
+                </p>
+                <button
+                  onClick={() => onNavigate("/visits")}
+                  className="text-[#577399]"
+                  style={{ fontSize: 11, fontWeight: 600 }}
                 >
-                  {s.severity}
-                </span>
-              }
-              primary={s.symptom}
-              secondary={`${SEVERITY_LABELS[s.severity]} · ${s.date}`}
-            />
-          ))}
-          <ExpandButton onClick={() => onNavigate("/symptoms")} />
-        </Folder>
-
-        {/* ── Vitals Folder ── */}
-        <Folder
-          label="Vitals"
-          isOpen={openFolder === "vitals"}
-          onToggle={() => toggle("vitals")}
-          summary={
-            <div className="flex items-center justify-between">
-              <span className="text-[#1e2533]" style={{ fontSize: 14, fontWeight: 500 }}>
-                {lastVital.label}: <strong>{lastVital.value}</strong> {lastVital.unit}
-              </span>
-              <span className="text-[#a9b9d0]" style={{ fontSize: 13 }}>{lastVital.date}</span>
-            </div>
-          }
-        >
-          {DEMO_VITALS.slice(0, 3).map((v) => (
-            <ListRow
-              key={v.id}
-              left={
-                <div className="w-8 h-8 rounded-xl bg-[#577399]/10 flex items-center justify-center shrink-0">
-                  <Heart className="w-4 h-4 text-[#577399]" />
-                </div>
-              }
-              primary={`${v.label}: ${v.value} ${v.unit}`}
-              secondary={`${v.status} · ${v.date}`}
-            />
-          ))}
-          <ExpandButton onClick={() => onNavigate("/vitals")} />
-        </Folder>
-
-      </div>
-    </div>
-  );
-}
-
-/* ── Sub-components ── */
-
-interface FolderProps {
-  label: string;
-  isOpen: boolean;
-  onToggle: () => void;
-  summary: React.ReactNode;
-  children: React.ReactNode;
-}
-
-function Folder({ label, isOpen, onToggle, summary, children }: FolderProps) {
-  return (
-    <div>
-      {/* Tab */}
-      <div className="flex items-end" style={{ paddingLeft: 2 }}>
-        <button
-          onClick={onToggle}
-          className="px-4 py-2 rounded-t-2xl transition-colors"
-          style={{
-            background: isOpen ? "white" : "#e8ecf2",
-            fontSize: 14,
-            fontWeight: 600,
-            color: isOpen ? "#1e2533" : "#7a94b6",
-            boxShadow: isOpen ? "0 -2px 8px rgba(0,0,0,0.06)" : "none",
-            position: "relative",
-            zIndex: isOpen ? 2 : 1,
-          }}
-        >
-          {label}
-        </button>
-      </div>
-
-      {/* Folder Body */}
-      <div
-        className="rounded-b-3xl rounded-tr-3xl"
-        style={{
-          background: "white",
-          boxShadow: "0 2px 16px rgba(0,0,0,0.07)",
-          overflow: "hidden",
-        }}
-      >
-        {/* Summary row — always visible */}
-        <button
-          onClick={onToggle}
-          className="w-full px-5 py-4 text-left flex items-center gap-2"
-        >
-          <div className="flex-1">{summary}</div>
-          <ChevronRight
-            className="w-4 h-4 text-[#d1d9e6] shrink-0 transition-transform"
-            style={{ transform: isOpen ? "rotate(90deg)" : "rotate(0deg)" }}
-          />
-        </button>
-
-        {/* Expanded content */}
-        <AnimatePresence initial={false}>
-          {isOpen && (
-            <motion.div
-              key="content"
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: "auto", opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              transition={{ duration: 0.22, ease: "easeInOut" }}
-              style={{ overflow: "hidden" }}
-            >
-              <div className="border-t border-[#f0f3f8] px-5 pt-3 pb-4 flex flex-col gap-2">
-                {children}
+                  View all →
+                </button>
               </div>
+              {visitDateDisplay && (
+                <p className="text-[#1e2533]" style={{ fontSize: 12 }}>
+                  Diagnosis · {visitDateDisplay}
+                </p>
+              )}
+            </div>
+
+            {allDone ? (
+              <div className="flex items-center gap-[10px]">
+                <div className="w-[26px] h-[26px] rounded-[6px] bg-[#465e83] flex items-center justify-center shrink-0">
+                  <Check className="w-3.5 h-3.5 text-[#f5f7fa]" strokeWidth={2.5} />
+                </div>
+                <p className="text-[#577399]" style={{ fontSize: 14 }}>
+                  All steps completed!
+                </p>
+              </div>
+            ) : (
+              <button
+                onClick={handleCheckStep}
+                className="flex items-center gap-[10px] w-full text-left"
+                disabled={justChecked}
+              >
+                <div
+                  className={`w-[26px] h-[26px] rounded-[6px] flex items-center justify-center shrink-0 transition-colors ${
+                    justChecked ? "bg-[#465e83]" : "border border-[#1e2533]"
+                  }`}
+                >
+                  {justChecked && (
+                    <Check className="w-3.5 h-3.5 text-[#f5f7fa]" strokeWidth={2.5} />
+                  )}
+                </div>
+                <p className="flex-1 text-[#1e2533]" style={{ fontSize: 16, lineHeight: "1.35" }}>
+                  {currentStep}
+                </p>
+              </button>
+            )}
+
+            {!allDone && remainingAfter > 0 && (
+              <p className="text-[#a9b9d0]" style={{ fontSize: 12 }}>
+                {remainingAfter} more step{remainingAfter > 1 ? "s" : ""}
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* ── Today's Medications Card ── */}
+        {lastVisit && medSchedule.length > 0 && (
+          <div
+            className="bg-white rounded-[20px] p-[18px] flex flex-col gap-[10px]"
+            style={{ boxShadow: "0 2px 16px rgba(0,0,0,0.07)" }}
+          >
+            <div className="flex items-center justify-between">
+              <p className="text-[#1e2533]" style={{ fontSize: 16, fontWeight: 600 }}>
+                Today's Medications
+              </p>
+              <button
+                onClick={() => onNavigate("/visits")}
+                className="text-[#577399]"
+                style={{ fontSize: 11, fontWeight: 600 }}
+              >
+                View all →
+              </button>
+            </div>
+
+            <div className="w-full h-px bg-[#d1d9e6]" />
+
+            {morningMeds.length > 0 && (
+              <>
+                <p className="text-[#1e2533]" style={{ fontSize: 16, fontWeight: 300 }}>
+                  Morning
+                </p>
+                {morningMeds.map((med) => (
+                  <MedRowItem
+                    key={`${med.name}_${med.period}`}
+                    med={med}
+                    onTake={() => handleTakeMed(med.name, med.period)}
+                    onEdit={() => handleOpenEdit(med.name, med.period)}
+                  />
+                ))}
+              </>
+            )}
+
+            {eveningMeds.length > 0 && (
+              <>
+                <p className="text-[#1e2533]" style={{ fontSize: 16, fontWeight: 300 }}>
+                  Evening
+                </p>
+                {eveningMeds.map((med) => (
+                  <MedRowItem
+                    key={`${med.name}_${med.period}`}
+                    med={med}
+                    onTake={() => handleTakeMed(med.name, med.period)}
+                    onEdit={() => handleOpenEdit(med.name, med.period)}
+                  />
+                ))}
+              </>
+            )}
+          </div>
+        )}
+
+        {/* ── How are you feeling card ── */}
+        <div
+          className="bg-[#577399] rounded-[20px] px-[14px] py-[18px] flex flex-col gap-[10px]"
+          style={{ boxShadow: "0 4px 20px rgba(87,115,153,0.3)" }}
+        >
+          <div className="flex flex-col gap-1">
+            <p className="text-[#f5f7fa]" style={{ fontSize: 17, fontWeight: 700 }}>
+              How are you feeling?
+            </p>
+            <p className="text-[#f5f7fa]" style={{ fontSize: 12 }}>
+              Log symptoms to share with your doctor
+            </p>
+          </div>
+          <button
+            onClick={() => onNavigate("/checkin")}
+            className="bg-[#f5f7fa] rounded-full px-[10px] py-[6px] self-start"
+            style={{ fontSize: 12, fontWeight: 600, color: "#577399" }}
+          >
+            Log now
+          </button>
+        </div>
+
+        {/* Empty state — no visits yet */}
+        {!lastVisit && (
+          <div
+            className="bg-white rounded-[20px] p-[18px] text-center"
+            style={{ boxShadow: "0 2px 16px rgba(0,0,0,0.07)" }}
+          >
+            <p className="text-[#a9b9d0]" style={{ fontSize: 14 }}>
+              Record a visit to see your next steps and medications here.
+            </p>
+          </div>
+        )}
+
+      </div>
+
+      {/* ── Medication Edit Sheet ── */}
+      <AnimatePresence>
+        {editingMed && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/30 z-50 flex items-end justify-center"
+            onClick={() => setEditingMed(null)}
+          >
+            <motion.div
+              initial={{ y: "100%" }}
+              animate={{ y: 0 }}
+              exit={{ y: "100%" }}
+              transition={{ type: "spring", damping: 28, stiffness: 260 }}
+              className="bg-white rounded-t-[28px] w-full max-w-[430px] p-6 pb-10 flex flex-col gap-5"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="w-10 h-1 bg-[#d1d9e6] rounded-full mx-auto" />
+
+              <p className="text-[#1e2533]" style={{ fontSize: 17, fontWeight: 600 }}>
+                {editingMed.name} · {editingMed.period}
+              </p>
+
+              <div className="flex flex-col gap-2">
+                <p className="text-[#577399]" style={{ fontSize: 12, fontWeight: 600 }}>
+                  TIME
+                </p>
+                <input
+                  type="time"
+                  value={to24h(editTime)}
+                  onChange={(e) => setEditTime(to12h(e.target.value))}
+                  className="w-full bg-[#f5f7fa] rounded-xl px-4 py-3 text-[#1e2533] outline-none"
+                  style={{ fontSize: 16, border: "none" }}
+                />
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-[#1e2533]" style={{ fontSize: 15, fontWeight: 500 }}>
+                    Reminder alarm
+                  </p>
+                  <p className="text-[#a9b9d0]" style={{ fontSize: 12 }}>
+                    Get notified at the set time
+                  </p>
+                </div>
+                <button
+                  onClick={() => setEditAlarm(!editAlarm)}
+                  className={`w-11 h-6 rounded-full relative transition-colors ${
+                    editAlarm ? "bg-[#577399]" : "bg-[#d1d9e6]"
+                  }`}
+                >
+                  <span
+                    className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
+                      editAlarm ? "translate-x-5" : "translate-x-0.5"
+                    }`}
+                  />
+                </button>
+              </div>
+
+              <button
+                onClick={handleSaveEdit}
+                className="w-full bg-[#577399] text-white rounded-xl py-3.5"
+                style={{ fontSize: 15, fontWeight: 600 }}
+              >
+                Save
+              </button>
             </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
 
-interface ListRowProps {
-  left: React.ReactNode;
-  primary: string;
-  secondary: string;
-}
+// ── Med Row ───────────────────────────────────────────────
+function MedRowItem({
+  med,
+  onTake,
+  onEdit,
+}: {
+  med: MedRowData;
+  onTake: () => void;
+  onEdit: () => void;
+}) {
+  const urgent = med.overdue && !med.taken;
 
-function ListRow({ left, primary, secondary }: ListRowProps) {
   return (
-    <div className="flex items-center gap-3 py-2">
-      <div className="shrink-0">{left}</div>
-      <div className="flex-1 min-w-0">
-        <p className="text-[#1e2533]" style={{ fontSize: 13, fontWeight: 600 }}>{primary}</p>
-        <p className="text-[#a9b9d0] truncate" style={{ fontSize: 12 }}>{secondary}</p>
-      </div>
-    </div>
-  );
-}
-
-function ExpandButton({ onClick }: { onClick: () => void }) {
-  return (
-    <button
-      onClick={onClick}
-      className="w-full mt-1 py-2.5 rounded-xl bg-[#f5f7fa] text-[#577399] flex items-center justify-center gap-1.5 transition-colors hover:bg-[#eaedf4]"
-      style={{ fontSize: 13, fontWeight: 600 }}
+    <div
+      className={`flex items-center justify-between p-[6px] rounded-[6px] transition-colors ${
+        urgent ? "bg-[#577399]" : ""
+      }`}
     >
-      See all <ChevronRight className="w-3.5 h-3.5" />
-    </button>
-  );
-}
-
-function EmptyState({ icon, message }: { icon: React.ReactNode; message: string }) {
-  return (
-    <div className="flex items-center gap-3 py-2 text-[#a9b9d0]">
-      {icon}
-      <span style={{ fontSize: 13 }}>{message}</span>
+      <div className="flex items-center gap-[10px]">
+        <button
+          onClick={onTake}
+          className={`w-[25px] h-[25px] rounded-[6px] flex items-center justify-center shrink-0 transition-colors ${
+            med.taken
+              ? "bg-[#465e83]"
+              : urgent
+              ? "border border-[#f5f7fa]"
+              : "border border-[#1e2533]"
+          }`}
+        >
+          {med.taken && (
+            <Check className="w-3.5 h-3.5 text-[#f5f7fa]" strokeWidth={2.5} />
+          )}
+        </button>
+        <div className={`flex flex-col ${urgent ? "text-[#f5f7fa]" : "text-[#1e2533]"}`}>
+          <span style={{ fontSize: 16, lineHeight: "1.3" }}>{med.name}</span>
+          <span style={{ fontSize: 10, lineHeight: "1.5", opacity: urgent ? 0.85 : 0.7 }}>
+            {med.time}
+          </span>
+        </div>
+      </div>
+      <button onClick={onEdit}>
+        <MoreHorizontal
+          className="w-5 h-5"
+          style={{ color: urgent ? "#f5f7fa" : "#a9b9d0" }}
+        />
+      </button>
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { Home, ClipboardList, Activity, Bell, Mic } from "lucide-react";
+import { Home, ClipboardList, PenLine, Bell, Mic } from "lucide-react";
 
 const leftTabs = [
   { icon: Home, label: "Home", path: "/" },
@@ -6,7 +6,7 @@ const leftTabs = [
 ];
 
 const rightTabs = [
-  { icon: Activity, label: "Vitals", path: "/vitals" },
+  { icon: PenLine, label: "Check-in", path: "/checkin" },
   { icon: Bell, label: "More", path: "/more" },
 ];
 
