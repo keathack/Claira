@@ -1,33 +1,26 @@
 import { useState } from "react";
-import { BookOpen, Shield, Heart, ArrowRight, Mic } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
-import { ImageWithFallback } from "./figma/ImageWithFallback";
-
-const HERO_IMG = "https://images.unsplash.com/photo-1758654859923-339c0f2f925e?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxtb2Rlcm4lMjBob3NwaXRhbCUyMGludGVyaW9yJTIwY2xlYW58ZW58MXx8fHwxNzc0ODA4OTc5fDA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral";
 
 const slides = [
   {
-    icon: BookOpen,
-    title: "Understand your visits",
-    desc: "Claira translates what your doctor said into clear, plain language you can reference anytime.",
+    title: "The gap between visit and understanding",
+    desc: "You leave the doctor's office with notes you can't read and instructions you're not sure about. For patients managing ongoing conditions across multiple providers, keeping up with your own care can feel overwhelming.",
     color: "#577399",
   },
   {
-    icon: Mic,
-    title: "Record or paste",
-    desc: "Record your doctor's words during or after your appointment, or paste a transcript. Claira does the rest.",
+    title: "Your visit, made clear",
+    desc: "Claira captures what your doctor said and turns it into a plain-language summary — your condition, your medications, and your next steps, all in one place.",
     color: "#465e83",
   },
   {
-    icon: Heart,
-    title: "Track how you feel",
-    desc: "Log symptoms and side effects between visits so you're always prepared for your next appointment.",
+    title: "Track how you're feeling",
+    desc: "Log symptoms between visits so nothing slips through the cracks. When your next appointment comes, you'll have a clear picture of how you've been doing.",
     color: "#d4183d",
   },
   {
-    icon: Shield,
-    title: "Your doctor is the authority",
-    desc: "Claira only surfaces what your doctor said — nothing more. It supports your care, never replaces it.",
+    title: "Supporting you, not replacing your doctor",
+    desc: "Doctors are busy. Claira helps patients understand their care so providers can focus on what they do best. It's not a replacement — it's a bridge.",
     color: "#394c6b",
   },
 ];
@@ -53,18 +46,13 @@ export function Onboarding({ onComplete }: OnboardingProps) {
     <div className="px-5 pt-8 pb-8 min-h-screen flex flex-col" style={{ fontFamily: "'Area Normal', sans-serif" }}>
       {/* Skip */}
       <div className="flex justify-end">
-        <button onClick={onComplete} className="text-[#a9b9d0] px-3 py-1" style={{ fontSize: 14 }}>
+        <button onClick={onComplete} className="text-kashmir-blue-300 px-3 py-1" style={{ fontSize: 14 }}>
           Skip
         </button>
       </div>
 
-      {/* Hero Image */}
-      <div className="mt-4 mb-8 rounded-3xl overflow-hidden h-[200px]">
-        <ImageWithFallback src={HERO_IMG} alt="Claira" className="w-full h-full object-cover" />
-      </div>
-
       {/* Content */}
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col justify-center">
         <AnimatePresence mode="wait">
           <motion.div
             key={currentSlide}
@@ -72,13 +60,10 @@ export function Onboarding({ onComplete }: OnboardingProps) {
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -40 }}
             transition={{ duration: 0.25 }}
-            className="flex-1"
+            className="flex-1 flex flex-col justify-center"
           >
-            <div className="w-12 h-12 rounded-2xl flex items-center justify-center mb-5" style={{ backgroundColor: slide.color + "14" }}>
-              <slide.icon className="w-6 h-6" style={{ color: slide.color }} />
-            </div>
-            <h2 className="text-[#1e2533] mb-3" style={{ fontSize: 24, fontWeight: 700 }}>{slide.title}</h2>
-            <p className="text-[#7a94b6]" style={{ fontSize: 15, lineHeight: 1.7 }}>{slide.desc}</p>
+            <h2 className="text-kashmir-blue-950 mb-3" style={{ fontSize: 28, fontWeight: 700 }}>{slide.title}</h2>
+            <p className="text-kashmir-blue-400" style={{ fontSize: 15, lineHeight: 1.7 }}>{slide.desc}</p>
           </motion.div>
         </AnimatePresence>
 
@@ -99,7 +84,7 @@ export function Onboarding({ onComplete }: OnboardingProps) {
         {/* Button */}
         <button
           onClick={handleNext}
-          className="w-full py-4 rounded-2xl bg-[#577399] text-white flex items-center justify-center gap-2"
+          className="w-full py-4 rounded-2xl bg-kashmir-blue-500 text-white flex items-center justify-center gap-2"
           style={{ fontSize: 15, fontWeight: 600 }}
         >
           {isLast ? "Get Started" : "Next"}
